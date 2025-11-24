@@ -1,0 +1,89 @@
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
+import { Toaster } from 'react-hot-toast'
+import { AuthProvider } from '@/contexts/AuthContext'
+import { LicenseProvider } from '@/contexts/LicenseContext'
+
+import ProtectedRoute from '@/components/common/ProtectedRoute'
+import MainLayout from '@/components/layout/MainLayout'
+import InstallPWA from '@/components/common/InstallPWA'
+
+import LicenseValidation from '@/pages/auth/LicenseValidation'
+import Register from '@/pages/auth/Register'
+import Login from '@/pages/auth/Login'
+import Dashboard from '@/pages/Dashboard'
+import PlayersPage from '@/pages/PlayersPage'
+import PlayerStatsPage from './pages/PlayerStatsPage'
+import MatchesPage from './pages/MatchesPage'
+import StatsPage from './pages/StatsPage'; 
+import MatchDetailPage from './pages/MatchDetailPage'
+import SettingsPage from './pages/SettingsPage';
+
+function App() {
+  return (
+    <Router>
+      <AuthProvider>
+        <LicenseProvider>
+          <Routes>
+            {/* Rutas públicas */}
+            <Route path="/license" element={<LicenseValidation />} />
+            <Route path="/register" element={<Register />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/" element={<Navigate to="/license" replace />} />
+            <Route path="/stats" element={<StatsPage />} />
+            <Route path="/settings" element={<SettingsPage />} />
+
+            {/* Rutas protegidas */}
+            <Route path="/dashboard" element={
+              <ProtectedRoute>
+                <MainLayout>
+                  <Dashboard />
+                </MainLayout>
+              </ProtectedRoute>
+            } />
+            
+            <Route path="/players" element={
+              <ProtectedRoute>
+                <MainLayout>
+                  <PlayersPage />
+                </MainLayout>
+              </ProtectedRoute>
+            } />
+
+            {/* ← ESTA RUTA DEBE ESTAR AQUÍ */}
+            <Route path="/players/:playerId/stats" element={
+              <ProtectedRoute>
+                <MainLayout>
+                  <PlayerStatsPage />
+                </MainLayout>
+              </ProtectedRoute>
+            } />
+
+            <Route path="/matches" element={
+              <ProtectedRoute>
+                <MainLayout>
+                  <MatchesPage />
+                </MainLayout>
+              </ProtectedRoute>
+            } />
+
+            <Route path="/matches/:matchId" element={
+              <ProtectedRoute>
+                <MainLayout>
+                  <MatchDetailPage />
+                </MainLayout>
+              </ProtectedRoute>
+            } />
+
+            {/* ... resto de rutas */}
+          </Routes>
+          
+          {/* Componentes globales */}
+          <Toaster position="top-right" />
+          <InstallPWA />
+        </LicenseProvider>
+      </AuthProvider>
+    </Router>
+  )
+}
+
+export default App
