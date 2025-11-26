@@ -12,11 +12,11 @@ import Register from '@/pages/auth/Register'
 import Login from '@/pages/auth/Login'
 import Dashboard from '@/pages/Dashboard'
 import PlayersPage from '@/pages/PlayersPage'
-import PlayerStatsPage from './pages/PlayerStatsPage'
-import MatchesPage from './pages/MatchesPage'
-import StatsPage from './pages/StatsPage'; 
-import MatchDetailPage from './pages/MatchDetailPage'
-import SettingsPage from './pages/SettingsPage';
+import PlayerStatsPage from '@/pages/PlayerStatsPage'
+import MatchesPage from '@/pages/MatchesPage'
+import MatchDetailPage from '@/pages/MatchDetailPage'
+import StatsPage from '@/pages/StatsPage'
+import SettingsPage from '@/pages/SettingsPage'
 
 function App() {
   return (
@@ -29,8 +29,6 @@ function App() {
             <Route path="/register" element={<Register />} />
             <Route path="/login" element={<Login />} />
             <Route path="/" element={<Navigate to="/license" replace />} />
-            <Route path="/stats" element={<StatsPage />} />
-            <Route path="/settings" element={<SettingsPage />} />
 
             {/* Rutas protegidas */}
             <Route path="/dashboard" element={
@@ -49,7 +47,6 @@ function App() {
               </ProtectedRoute>
             } />
 
-            {/* ← ESTA RUTA DEBE ESTAR AQUÍ */}
             <Route path="/players/:playerId/stats" element={
               <ProtectedRoute>
                 <MainLayout>
@@ -74,7 +71,24 @@ function App() {
               </ProtectedRoute>
             } />
 
-            {/* ... resto de rutas */}
+            {/* ✅ STATS - Ahora protegida y con layout */}
+            <Route path="/stats" element={
+              <ProtectedRoute>
+                <MainLayout>
+                  <StatsPage />
+                </MainLayout>
+              </ProtectedRoute>
+            } />
+
+            {/* ✅ SETTINGS - Ahora protegida y con layout */}
+            <Route path="/settings" element={
+              <ProtectedRoute>
+                <MainLayout>
+                  <SettingsPage />
+                </MainLayout>
+              </ProtectedRoute>
+            } />
+
           </Routes>
           
           {/* Componentes globales */}
