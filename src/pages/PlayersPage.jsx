@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import { useLicense } from '@/contexts/LicenseContext'
 import { Link } from 'react-router-dom'
-import { exportPlayerReport } from '@/utils/pdfExports'
 import { 
   Users, 
   Search, 
@@ -12,23 +11,21 @@ import {
   X,
   Phone,
   Mail,
-  BarChart3  // ← AÑADIR ESTA LÍNEA
+  BarChart3,
+  Camera
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 const PlayersPage = () => {
   const { currentLicense } = useLicense()
-  console.log('🎯 PlayersPage renderizado')
-  console.log('📋 currentLicense:', currentLicense)
   const [players, setPlayers] = useState([])
   const [filteredPlayers, setFilteredPlayers] = useState([])
   const [loading, setLoading] = useState(true)
-  console.log('👥 players:', players)
-  console.log('🔄 loading:', loading)
-  console.log('🔍 filteredPlayers:', filteredPlayers)
   const [searchTerm, setSearchTerm] = useState('')
   const [showModal, setShowModal] = useState(false)
   const [editingPlayer, setEditingPlayer] = useState(null)
+  const [uploading, setUploading] = useState(false)
+  const [photoPreview, setPhotoPreview] = useState(null)
   const [formData, setFormData] = useState({
     name: '',
     shirt_number: '',
@@ -38,7 +35,8 @@ const PlayersPage = () => {
     height_cm: '',
     weight_kg: '',
     birth_date: '',
-    notes: ''
+    notes: '',
+    photo_url: ''
   })
 
   useEffect(() => {
@@ -100,11 +98,13 @@ const PlayersPage = () => {
         height_cm: player.height_cm || '',
         weight_kg: player.weight_kg || '',
         birth_date: player.birth_date || '',
-        notes: player.notes || ''
+        notes: player.notes || '',
+        photo_url: player.photo_url || ''
       })
+      setPhotoPreview(player.photo_url || null)
     } else {
       setEditingPlayer(null)
-     setFormData({
+      setFormData({
         name: '',
         shirt_number: '',
         position: '',
@@ -113,8 +113,10 @@ const PlayersPage = () => {
         height_cm: '',
         weight_kg: '',
         birth_date: '',
-        notes: ''
+        notes: '',
+        photo_url: ''
       })
+      setPhotoPreview(null)
     }
     setShowModal(true)
   }
@@ -122,6 +124,7 @@ const PlayersPage = () => {
   const handleCloseModal = () => {
     setShowModal(false)
     setEditingPlayer(null)
+    setPhotoPreview(null)
     setFormData({
       name: '',
       shirt_number: '',
@@ -131,7 +134,8 @@ const PlayersPage = () => {
       height_cm: '',
       weight_kg: '',
       birth_date: '',
-      notes: ''
+      notes: '',
+      photo_url: ''
     })
   }
 
@@ -140,6 +144,80 @@ const PlayersPage = () => {
       ...formData,
       [e.target.name]: e.target.value
     })
+  }
+
+  const handlePhotoChange = async (e) => {
+    const file = e.target.files[0]
+    if (!file) return
+
+    // Validar tamaño (máx 2MB)
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error('La imagen no puede superar 2MB')
+      return
+    }
+
+    // Validar tipo
+    if (!file.type.startsWith('image/')) {
+      toast.error('Solo se permiten imágenes')
+      return
+    }
+
+    try {
+      setUploading(true)
+
+      // Crear nombre único para el archivo
+      const fileExt = file.name.split('.').pop()
+      const fileName = `${currentLicense.id}/${Date.now()}.${fileExt}`
+
+      // Subir a Supabase Storage
+      const { data, error } = await supabase.storage
+        .from('player-photos')
+        .upload(fileName, file, {
+          cacheControl: '3600',
+          upsert: false
+        })
+
+      if (error) throw error
+
+      // Obtener URL pública
+      const { data: { publicUrl } } = supabase.storage
+        .from('player-photos')
+        .getPublicUrl(fileName)
+
+      setFormData({ ...formData, photo_url: publicUrl })
+      setPhotoPreview(publicUrl)
+      toast.success('Foto subida correctamente')
+
+    } catch (error) {
+      console.error('Error al subir foto:', error)
+      toast.error('Error al subir la foto')
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  const handleRemovePhoto = async () => {
+    if (formData.photo_url) {
+      try {
+        // Extraer el path del archivo de la URL
+        const urlParts = formData.photo_url.split('/player-photos/')
+        if (urlParts.length > 1) {
+          const filePath = urlParts[1].split('?')[0] // Quitar query params
+          
+          await supabase.storage
+            .from('player-photos')
+            .remove([filePath])
+        }
+
+        setFormData({ ...formData, photo_url: '' })
+        setPhotoPreview(null)
+        toast.success('Foto eliminada')
+
+      } catch (error) {
+        console.error('Error al eliminar foto:', error)
+        toast.error('Error al eliminar la foto')
+      }
+    }
   }
 
   const handleSubmit = async (e) => {
@@ -162,6 +240,7 @@ const PlayersPage = () => {
         weight_kg: formData.weight_kg ? parseFloat(formData.weight_kg) : null,
         birth_date: formData.birth_date || null,
         notes: formData.notes || null,
+        photo_url: formData.photo_url || null,
         status: 'active',
         updated_at: new Date().toISOString()
       }
@@ -201,6 +280,17 @@ const PlayersPage = () => {
     }
 
     try {
+      // Eliminar foto si existe
+      if (player.photo_url) {
+        const urlParts = player.photo_url.split('/player-photos/')
+        if (urlParts.length > 1) {
+          const filePath = urlParts[1].split('?')[0]
+          await supabase.storage
+            .from('player-photos')
+            .remove([filePath])
+        }
+      }
+
       const { error } = await supabase
         .from('players')
         .update({ status: 'inactive', updated_at: new Date().toISOString() })
@@ -228,7 +318,7 @@ const PlayersPage = () => {
 
   if (loading) {
     return (
-      <div className="page-container">
+      <div className="px-4 sm:px-6 lg:px-8 py-6">
         <div className="flex items-center justify-center h-64">
           <div className="spinner"></div>
         </div>
@@ -237,14 +327,14 @@ const PlayersPage = () => {
   }
 
   return (
-    <div className="page-container">
-      <div className="flex items-center justify-between mb-6">
+    <div className="px-4 sm:px-6 lg:px-8 py-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
         <div className="flex items-center gap-3">
-          <div className="w-12 h-12 bg-primary-600 rounded-xl flex items-center justify-center">
+          <div className="w-12 h-12 bg-primary-600 rounded-xl flex items-center justify-center flex-shrink-0">
             <Users className="h-6 w-6 text-white" />
           </div>
           <div>
-            <h1 className="page-title mb-0">Plantilla</h1>
+            <h1 className="text-2xl font-bold text-gray-900">Plantilla</h1>
             <p className="text-sm text-gray-500">
               {filteredPlayers.length} jugador{filteredPlayers.length !== 1 ? 'es' : ''}
             </p>
@@ -253,7 +343,7 @@ const PlayersPage = () => {
 
         <button
           onClick={() => handleOpenModal()}
-          className="btn-primary flex items-center gap-2"
+          className="btn-primary flex items-center gap-2 justify-center sm:justify-start"
         >
           <Plus className="h-5 w-5" />
           Agregar Jugador
@@ -300,62 +390,76 @@ const PlayersPage = () => {
           {filteredPlayers.map((player) => (
             <div key={player.id} className="card hover:shadow-lg transition-shadow">
               <div className="flex items-start gap-4">
-                <div className="w-16 h-16 bg-gradient-to-br from-primary-500 to-primary-600 rounded-xl flex items-center justify-center flex-shrink-0">
-                  <div className="text-center">
+                {/* Foto o Número */}
+                <div className="w-16 h-16 rounded-xl flex items-center justify-center flex-shrink-0 overflow-hidden bg-gradient-to-br from-primary-500 to-primary-600">
+                  {player.photo_url ? (
+                    <img 
+                      src={player.photo_url} 
+                      alt={player.name}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
                     <div className="text-2xl font-bold text-white">
                       {player.shirt_number}
                     </div>
-                  </div>
+                  )}
                 </div>
 
                 <div className="flex-1 min-w-0">
                   <h3 className="font-semibold text-gray-900 mb-1 truncate">
                     {player.name}
                   </h3>
-                  <span className={`inline-block px-2 py-1 rounded-md text-xs font-medium ${getPositionColor(player.position)}`}>
-                    {player.position}
-                  </span>
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className={`inline-block px-2 py-1 rounded-md text-xs font-medium ${getPositionColor(player.position)}`}>
+                      {player.position}
+                    </span>
+                    {player.photo_url && (
+                      <span className="text-xs text-gray-500">
+                        #{player.shirt_number}
+                      </span>
+                    )}
+                  </div>
 
                   {(player.email || player.phone) && (
                     <div className="mt-2 space-y-1">
                       {player.email && (
                         <div className="flex items-center gap-2 text-xs text-gray-500">
-                          <Mail className="h-3 w-3" />
+                          <Mail className="h-3 w-3 flex-shrink-0" />
                           <span className="truncate">{player.email}</span>
                         </div>
                       )}
                       {player.phone && (
                         <div className="flex items-center gap-2 text-xs text-gray-500">
-                          <Phone className="h-3 w-3" />
+                          <Phone className="h-3 w-3 flex-shrink-0" />
                           <span>{player.phone}</span>
                         </div>
                       )}
                     </div>
                   )}
 
-                  <div className="flex items-center gap-4 mt-3">
-  <Link
-    to={`/players/${player.id}/stats`}
-    className="text-purple-600 hover:text-purple-700 flex items-center gap-1 text-sm"
-  >
-    <BarChart3 className="h-4 w-4" />
-    Estadísticas
-  </Link>
-  <button
-    onClick={() => handleOpenModal(player)}
-    className="text-primary-600 hover:text-primary-700 flex items-center gap-1 text-sm"
-  >
-    <Edit2 className="h-4 w-4" />
-    Editar
-  </button>
-  <button
-    onClick={() => handleDelete(player)}
-    className="text-danger-600 hover:text-danger-700 flex items-center gap-1 text-sm"
-  >
-    <Trash2 className="h-4 w-4" />
-    Eliminar
-  </button>
-</div>
+                  <div className="flex flex-wrap items-center gap-3 mt-3">
+                    <Link
+                      to={`/players/${player.id}/stats`}
+                      className="text-purple-600 hover:text-purple-700 flex items-center gap-1 text-sm"
+                    >
+                      <BarChart3 className="h-4 w-4" />
+                      Estadísticas
+                    </Link>
+                    <button
+                      onClick={() => handleOpenModal(player)}
+                      className="text-primary-600 hover:text-primary-700 flex items-center gap-1 text-sm"
+                    >
+                      <Edit2 className="h-4 w-4" />
+                      Editar
+                    </button>
+                    <button
+                      onClick={() => handleDelete(player)}
+                      className="text-danger-600 hover:text-danger-700 flex items-center gap-1 text-sm"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      Eliminar
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -379,6 +483,51 @@ const PlayersPage = () => {
             </div>
 
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
+              {/* Foto de perfil */}
+              <div className="flex flex-col items-center mb-6">
+                <div className="relative">
+                  <div className="w-32 h-32 rounded-full overflow-hidden bg-gradient-to-br from-primary-500 to-primary-600 flex items-center justify-center">
+                    {photoPreview ? (
+                      <img 
+                        src={photoPreview} 
+                        alt="Preview"
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="text-4xl font-bold text-white">
+                        {formData.shirt_number || '?'}
+                      </div>
+                    )}
+                  </div>
+                  
+                  <label className="absolute bottom-0 right-0 w-10 h-10 bg-white border-2 border-gray-300 rounded-full flex items-center justify-center cursor-pointer hover:bg-gray-50 shadow-lg">
+                    <Camera className="h-5 w-5 text-gray-600" />
+                    <input 
+                      type="file" 
+                      accept="image/*"
+                      onChange={handlePhotoChange}
+                      className="hidden"
+                      disabled={uploading}
+                    />
+                  </label>
+                </div>
+
+                <div className="mt-4 flex items-center gap-2">
+                  {uploading && (
+                    <span className="text-sm text-gray-500">Subiendo...</span>
+                  )}
+                  {photoPreview && !uploading && (
+                    <button
+                      type="button"
+                      onClick={handleRemovePhoto}
+                      className="text-sm text-red-600 hover:text-red-700"
+                    >
+                      Eliminar foto
+                    </button>
+                  )}
+                </div>
+              </div>
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="md:col-span-2">
                   <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -524,6 +673,7 @@ const PlayersPage = () => {
                 <button
                   type="submit"
                   className="btn-primary"
+                  disabled={uploading}
                 >
                   {editingPlayer ? 'Guardar Cambios' : 'Agregar Jugador'}
                 </button>

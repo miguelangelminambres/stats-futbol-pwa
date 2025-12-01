@@ -1,216 +1,341 @@
-import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
-import { useLicense } from '@/contexts/LicenseContext'
-import { supabase } from '@/lib/supabaseClient'
-import { Users, Calendar, Trophy, TrendingUp } from 'lucide-react'
-import Loading from '@/components/common/Loading'
+import { useState, useEffect } from 'react';
+import { supabase } from '@/lib/supabaseClient';
+import { useLicense } from '@/contexts/LicenseContext';
+import { 
+  Users, 
+  Calendar, 
+  Target, 
+  TrendingUp,
+  Trophy,
+  Award,
+  Activity
+} from 'lucide-react';
+import {
+  ResultsPieChart,
+  GoalsBarChart,
+  TopScorersChart,
+  TopAssistersChart,
+  TopMinutesChart
+} from '@/components/charts/ChartComponents';
 
 const Dashboard = () => {
-  const { currentLicense } = useLicense()
+  const { currentLicense } = useLicense();
+  const [loading, setLoading] = useState(true);
+  const [language, setLanguage] = useState('es');
   const [stats, setStats] = useState({
-    totalPlayers: 0,
-    activePlayers: 0,
-    totalMatches: 0,
+    players: 0,
+    matches: 0,
+    totalGoals: 0,
+    totalAssists: 0,
     wins: 0,
     draws: 0,
     losses: 0,
-  })
-  const [loading, setLoading] = useState(true)
+  });
+  const [topScorers, setTopScorers] = useState([]);
+  const [topAssisters, setTopAssisters] = useState([]);
+  const [topMinutes, setTopMinutes] = useState([]);
+  const [recentMatches, setRecentMatches] = useState([]);
+
+  const translations = {
+    es: {
+      title: 'Panel de Control',
+      players: 'Jugadores',
+      matches: 'Partidos',
+      goals: 'Goles',
+      assists: 'Asistencias',
+      welcome: 'Bienvenido',
+      noData: 'No hay datos disponibles',
+      loading: 'Cargando estadísticas...',
+      teamStats: 'Estadísticas del Equipo',
+      recentPerformance: 'Rendimiento Reciente',
+      topPlayers: 'Mejores Jugadores',
+    },
+    en: {
+      title: 'Dashboard',
+      players: 'Players',
+      matches: 'Matches',
+      goals: 'Goals',
+      assists: 'Assists',
+      welcome: 'Welcome',
+      noData: 'No data available',
+      loading: 'Loading statistics...',
+      teamStats: 'Team Statistics',
+      recentPerformance: 'Recent Performance',
+      topPlayers: 'Top Players',
+    }
+  };
+
+  const t = translations[language];
 
   useEffect(() => {
     if (currentLicense) {
-      loadStats()
+      fetchDashboardData();
     }
-  }, [currentLicense])
+  }, [currentLicense]);
 
-  const loadStats = async () => {
+  const fetchDashboardData = async () => {
     try {
-      setLoading(true)
+      setLoading(true);
 
-      const { count: totalPlayers } = await supabase
-        .from('players')
-        .select('*', { count: 'exact', head: true })
-        .eq('license_id', currentLicense.id)
+      // Obtener estadísticas básicas
+      const [playersRes, matchesRes, statsRes] = await Promise.all([
+        // Jugadores activos
+        supabase
+          .from('players')
+          .select('id', { count: 'exact', head: true })
+          .eq('license_id', currentLicense.id)
+          .eq('status', 'active'),
+        
+        // Partidos
+        supabase
+          .from('matches')
+          .select('*')
+          .eq('license_id', currentLicense.id)
+          .order('match_date', { ascending: false }),
+        
+        // Estadísticas de jugadores
+        supabase
+          .from('player_season_stats')
+          .select('*')
+          .eq('license_id', currentLicense.id)
+      ]);
 
-      const { count: activePlayers } = await supabase
-        .from('players')
-        .select('*', { count: 'exact', head: true })
-        .eq('license_id', currentLicense.id)
-        .eq('status', 'active')
+      const matches = matchesRes.data || [];
+      const playerStats = statsRes.data || [];
 
-      const { data: matches } = await supabase
-        .from('matches')
-        .select('result')
-        .eq('license_id', currentLicense.id)
+      // Calcular estadísticas
+      const totalGoals = matches.reduce((sum, m) => sum + (m.team_goals || 0), 0);
+      const wins = matches.filter(m => m.result === 'win').length;
+      const draws = matches.filter(m => m.result === 'draw').length;
+      const losses = matches.filter(m => m.result === 'loss').length;
 
-      const totalMatches = matches?.length || 0
-      const wins = matches?.filter(m => m.result === 'win').length || 0
-      const draws = matches?.filter(m => m.result === 'draw').length || 0
-      const losses = matches?.filter(m => m.result === 'loss').length || 0
+      const totalAssists = playerStats.reduce((sum, p) => sum + (p.total_assists || 0), 0);
 
       setStats({
-        totalPlayers: totalPlayers || 0,
-        activePlayers: activePlayers || 0,
-        totalMatches,
+        players: playersRes.count || 0,
+        matches: matches.length,
+        totalGoals,
+        totalAssists,
         wins,
         draws,
         losses,
-      })
+      });
+
+      // Top goleadores (Top 10)
+      const { data: playersData } = await supabase
+        .from('players')
+        .select('id, name, shirt_number')
+        .eq('license_id', currentLicense.id)
+        .eq('status', 'active');
+
+      const players = playersData || [];
+
+      if (players.length > 0) {
+        const { data: statsData } = await supabase
+          .from('player_season_stats')
+          .select('player_id, total_goals, total_assists, total_minutes')
+          .eq('license_id', currentLicense.id);
+
+        const stats = statsData || [];
+
+        // Combinar jugadores con estadísticas
+        const playersWithStats = players.map(player => {
+          const playerStats = stats.find(s => s.player_id === player.id);
+          return {
+            name: player.name,
+            goals: playerStats?.total_goals || 0,
+            assists: playerStats?.total_assists || 0,
+            minutes: playerStats?.total_minutes || 0
+          };
+        });
+
+        // Top goleadores
+        const scorers = playersWithStats
+          .filter(p => p.goals > 0)
+          .sort((a, b) => b.goals - a.goals)
+          .slice(0, 10);
+
+        setTopScorers(scorers);
+
+        // Top asistentes
+        const assisters = playersWithStats
+          .filter(p => p.assists > 0)
+          .sort((a, b) => b.assists - a.assists)
+          .slice(0, 10);
+
+        setTopAssisters(assisters);
+
+        // Top minutos
+        const minutesList = playersWithStats
+          .filter(p => p.minutes > 0)
+          .sort((a, b) => b.minutes - a.minutes)
+          .slice(0, 10);
+
+        setTopMinutes(minutesList);
+      }
+
+      // Últimos 5 partidos para gráfico
+      const last5Matches = matches.slice(0, 5).reverse().map(m => ({
+        opponent: m.opponent || 'Unknown',
+        goalsFor: m.team_goals || 0,
+        goalsAgainst: m.opponent_goals || 0,
+      }));
+
+      setRecentMatches(last5Matches);
+
     } catch (error) {
-      console.error('Error al cargar estadísticas:', error)
+      console.error('Error fetching dashboard data:', error);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   if (loading) {
-    return <Loading message="Cargando estadísticas..." />
+    return (
+      <div className="px-4 sm:px-6 lg:px-8 py-6">
+        <div className="flex items-center justify-center h-64">
+          <div className="text-gray-500">{t.loading}</div>
+        </div>
+      </div>
+    );
   }
 
-  const winPercentage = stats.totalMatches > 0 
-    ? Math.round((stats.wins / stats.totalMatches) * 100)
-    : 0
-
   return (
-    <div>
-      <div className="page-header">
-        <h1 className="page-title">
-          Bienvenido a {currentLicense?.name}
-        </h1>
-        <p className="page-description">
-          Resumen de las estadísticas de tu equipo
-        </p>
+    <div className="px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">{t.title}</h1>
+          <p className="text-gray-500 mt-1">
+            {t.welcome}, {currentLicense?.name || 'Equipo'}
+          </p>
+        </div>
+        
+        <button
+          onClick={() => setLanguage(language === 'es' ? 'en' : 'es')}
+          className="px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50"
+        >
+          {language === 'es' ? '🇪🇸 ES' : '🇬🇧 EN'}
+        </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        <div className="card">
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {/* Jugadores */}
+        <div className="bg-white rounded-lg shadow p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600 mb-1">
-                Jugadores
-              </p>
-              <p className="text-3xl font-bold text-gray-900">
-                {stats.activePlayers}
-              </p>
-              <p className="text-xs text-gray-500 mt-1">
-                {stats.totalPlayers} en total
-              </p>
+              <p className="text-sm font-medium text-gray-500">{t.players}</p>
+              <p className="text-3xl font-bold text-gray-900 mt-2">{stats.players}</p>
             </div>
-            <div className="w-12 h-12 bg-primary-100 rounded-full flex items-center justify-center">
-              <Users className="h-6 w-6 text-primary-600" />
+            <div className="p-3 bg-blue-100 rounded-lg">
+              <Users className="h-8 w-8 text-blue-600" />
             </div>
           </div>
         </div>
 
-        <div className="card">
+        {/* Partidos */}
+        <div className="bg-white rounded-lg shadow p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600 mb-1">
-                Partidos
-              </p>
-              <p className="text-3xl font-bold text-gray-900">
-                {stats.totalMatches}
-              </p>
-              <p className="text-xs text-gray-500 mt-1">
-                Total jugados
-              </p>
+              <p className="text-sm font-medium text-gray-500">{t.matches}</p>
+              <p className="text-3xl font-bold text-gray-900 mt-2">{stats.matches}</p>
             </div>
-            <div className="w-12 h-12 bg-success-100 rounded-full flex items-center justify-center">
-              <Calendar className="h-6 w-6 text-success-600" />
+            <div className="p-3 bg-green-100 rounded-lg">
+              <Calendar className="h-8 w-8 text-green-600" />
             </div>
           </div>
         </div>
 
-        <div className="card">
+        {/* Goles */}
+        <div className="bg-white rounded-lg shadow p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600 mb-1">
-                Victorias
-              </p>
-              <p className="text-3xl font-bold text-success-700">
-                {stats.wins}
-              </p>
-              <p className="text-xs text-gray-500 mt-1">
-                {stats.draws} empates, {stats.losses} derrotas
-              </p>
+              <p className="text-sm font-medium text-gray-500">{t.goals}</p>
+              <p className="text-3xl font-bold text-gray-900 mt-2">{stats.totalGoals}</p>
             </div>
-            <div className="w-12 h-12 bg-warning-100 rounded-full flex items-center justify-center">
-              <Trophy className="h-6 w-6 text-warning-600" />
+            <div className="p-3 bg-purple-100 rounded-lg">
+              <Target className="h-8 w-8 text-purple-600" />
             </div>
           </div>
         </div>
 
-        <div className="card">
+        {/* Asistencias */}
+        <div className="bg-white rounded-lg shadow p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600 mb-1">
-                % Victorias
-              </p>
-              <p className="text-3xl font-bold text-gray-900">
-                {winPercentage}%
-              </p>
-              <p className="text-xs text-gray-500 mt-1">
-                Efectividad
-              </p>
+              <p className="text-sm font-medium text-gray-500">{t.assists}</p>
+              <p className="text-3xl font-bold text-gray-900 mt-2">{stats.totalAssists}</p>
             </div>
-            <div className="w-12 h-12 bg-danger-100 rounded-full flex items-center justify-center">
-              <TrendingUp className="h-6 w-6 text-danger-600" />
+            <div className="p-3 bg-orange-100 rounded-lg">
+              <TrendingUp className="h-8 w-8 text-orange-600" />
             </div>
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Link to="/players" className="card-hover">
-          <div className="flex items-start space-x-4">
-            <div className="w-10 h-10 bg-primary-100 rounded-lg flex items-center justify-center flex-shrink-0">
-              <Users className="h-5 w-5 text-primary-600" />
-            </div>
-            <div>
-              <h3 className="font-semibold text-gray-900 mb-1">
-                Gestionar Plantilla
-              </h3>
-              <p className="text-sm text-gray-600">
-                Añade, edita o elimina jugadores de tu equipo
-              </p>
-            </div>
-          </div>
-        </Link>
+      {/* Sección de Gráficos */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Distribución de Resultados */}
+        <ResultsPieChart 
+          wins={stats.wins}
+          draws={stats.draws}
+          losses={stats.losses}
+          language={language}
+        />
 
-        <Link to="/matches" className="card-hover">
-          <div className="flex items-start space-x-4">
-            <div className="w-10 h-10 bg-success-100 rounded-lg flex items-center justify-center flex-shrink-0">
-              <Calendar className="h-5 w-5 text-success-600" />
-            </div>
-            <div>
-              <h3 className="font-semibold text-gray-900 mb-1">
-                Registrar Partido
-              </h3>
-              <p className="text-sm text-gray-600">
-                Crea un nuevo partido y registra las estadísticas
-              </p>
-            </div>
-          </div>
-        </Link>
-
-        <Link to="/stats" className="card-hover">
-          <div className="flex items-start space-x-4">
-            <div className="w-10 h-10 bg-warning-100 rounded-lg flex items-center justify-center flex-shrink-0">
-              <TrendingUp className="h-5 w-5 text-warning-600" />
-            </div>
-            <div>
-              <h3 className="font-semibold text-gray-900 mb-1">
-                Ver Estadísticas
-              </h3>
-              <p className="text-sm text-gray-600">
-                Consulta el rendimiento de cada jugador
-              </p>
-            </div>
-          </div>
-        </Link>
+        {/* Últimos 5 Partidos */}
+        {recentMatches.length > 0 && (
+          <GoalsBarChart 
+            data={recentMatches}
+            language={language}
+          />
+        )}
       </div>
+
+      {/* Top Jugadores */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Top Goleadores */}
+        {topScorers.length > 0 && (
+          <TopScorersChart 
+            data={topScorers}
+            language={language}
+          />
+        )}
+
+        {/* Top Asistentes */}
+        {topAssisters.length > 0 && (
+          <TopAssistersChart 
+            data={topAssisters}
+            language={language}
+          />
+        )}
+
+        {/* Top Minutos */}
+        {topMinutes.length > 0 && (
+          <TopMinutesChart 
+            data={topMinutes}
+            language={language}
+          />
+        )}
+      </div>
+
+      {/* Mensaje si no hay datos */}
+      {stats.matches === 0 && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 text-center">
+          <Trophy className="h-12 w-12 text-blue-400 mx-auto mb-4" />
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">
+            {language === 'es' ? '¡Empieza a registrar datos!' : 'Start recording data!'}
+          </h3>
+          <p className="text-gray-600">
+            {language === 'es' 
+              ? 'Añade jugadores y registra tu primer partido para ver estadísticas aquí.'
+              : 'Add players and record your first match to see statistics here.'}
+          </p>
+        </div>
+      )}
     </div>
-  )
-}
+  );
+};
 
-export default Dashboard
+export default Dashboard;
