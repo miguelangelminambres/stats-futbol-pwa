@@ -19,7 +19,7 @@ const SubscriptionPage = () => {
       name: 'Mensual',
       price: '€3.99',
       period: 'mes',
-      priceId: 'price_1SZeNQCdFC6VvQJy5RXieqdn',
+      priceId: 'price_1SZxjR3punCDPGmCrcuzcIRM',
       features: [
         'Gestión ilimitada de jugadores',
         'Registro de partidos y estadísticas',
@@ -35,7 +35,7 @@ const SubscriptionPage = () => {
       name: 'Anual',
       price: '€25',
       period: 'año',
-      priceId: 'price_1SZeNXCdFC6VvQJyeQF59K8o',
+      priceId: 'price_1SZxix3punCDPGmCZsRdhpiz',
       savings: 'Ahorra 48%',
       originalPrice: '€47.88',
       features: [
