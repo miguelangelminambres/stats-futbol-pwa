@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 import { useLicense } from '@/contexts/LicenseContext'
+import Paywall from '@/components/Paywall'
 import { 
   Menu, 
   X, 
@@ -35,6 +36,38 @@ const MainLayout = ({ children }) => {
   ]
 
   const isActive = (path) => location.pathname.startsWith(path)
+
+  // Si la licencia está pending, mostrar solo el Paywall (excepto en /subscription)
+if (currentLicense?.status === 'pending' && location.pathname !== '/subscription') {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <header className="bg-white shadow-sm border-b border-gray-200">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex justify-between items-center h-16">
+              <div className="flex items-center space-x-2">
+                <Trophy className="h-8 w-8 text-primary-600" />
+                <span className="text-xl font-bold text-gray-900">
+                  Stats Fútbol
+                </span>
+              </div>
+
+              <button
+                onClick={handleSignOut}
+                className="flex items-center space-x-2 px-4 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <LogOut className="h-5 w-5" />
+                <span className="hidden sm:inline">Cerrar sesión</span>
+              </button>
+            </div>
+          </div>
+        </header>
+
+        <main className="page-container">
+          <Paywall />
+        </main>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">

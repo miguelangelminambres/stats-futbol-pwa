@@ -17,6 +17,7 @@ import {
   TopAssistersChart,
   TopMinutesChart
 } from '@/components/charts/ChartComponents';
+import Paywall from '@/components/Paywall';
 
 const Dashboard = () => {
   const { currentLicense } = useLicense();
@@ -136,16 +137,16 @@ const Dashboard = () => {
           .select('player_id, total_goals, total_assists, total_minutes')
           .eq('license_id', currentLicense.id);
 
-        const stats = statsData || [];
+        const statsFromDB = statsData || [];
 
         // Combinar jugadores con estadísticas
         const playersWithStats = players.map(player => {
-          const playerStats = stats.find(s => s.player_id === player.id);
+          const playerStat = statsFromDB.find(s => s.player_id === player.id);
           return {
             name: player.name,
-            goals: playerStats?.total_goals || 0,
-            assists: playerStats?.total_assists || 0,
-            minutes: playerStats?.total_minutes || 0
+            goals: playerStat?.total_goals || 0,
+            assists: playerStat?.total_assists || 0,
+            minutes: playerStat?.total_minutes || 0
           };
         });
 
@@ -189,6 +190,23 @@ const Dashboard = () => {
       setLoading(false);
     }
   };
+
+  // Mostrar loader mientras carga la licencia
+  if (!currentLicense) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Cargando...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Mostrar Paywall si licencia está pending
+  if (currentLicense.status === 'pending') {
+    return <Paywall />;
+  }
 
   if (loading) {
     return (

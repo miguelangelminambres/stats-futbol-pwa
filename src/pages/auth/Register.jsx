@@ -78,6 +78,19 @@ const Register = () => {
     setLoading(true)
 
     try {
+      // 0. NUEVO: Verificar si el email ya existe en la tabla users
+      const { data: existingUser } = await supabase
+        .from('users')
+        .select('id')
+        .eq('email', formData.email.toLowerCase().trim())
+        .single()
+
+      if (existingUser) {
+        toast.error('Este email ya está registrado. ¿Quieres iniciar sesión?')
+        setLoading(false)
+        return
+      }
+
       // 1. Crear usuario en Supabase Auth
       const { data: authData, error: authError } = await signUp(
         formData.email,
@@ -98,14 +111,14 @@ const Register = () => {
 
       const userId = authData.user.id
 
-      // 2. Crear usuario en la tabla users (NUEVO PASO)
+      // 2. Crear usuario en la tabla users
       const { error: userError } = await supabase
         .from('users')
         .insert([{
           id: userId,
           name: formData.name,
-          email: formData.email,
-          password: formData.password, // En producción deberías hashear esto
+          email: formData.email.toLowerCase().trim(),
+          password: formData.password,
           role: 'coach',
           status: 'active',
           created_at: new Date().toISOString(),
@@ -114,6 +127,11 @@ const Register = () => {
 
       if (userError) {
         console.error('Error al crear usuario en tabla users:', userError)
+        // Manejar error de duplicado específicamente
+        if (userError.code === '23505') {
+          toast.error('Este email ya está registrado. Por favor, inicia sesión.')
+          return
+        }
         throw userError
       }
 
@@ -136,21 +154,7 @@ const Register = () => {
       }
 
       // 4. Si es el primer usuario, actualizar el estado de la licencia a 'active'
-      if (licenseInfo.activeUsers === 0) {
-        const { error: updateError } = await supabase
-          .from('licenses')
-          .update({
-            status: 'active',
-            activated_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', licenseInfo.id)
-
-        if (updateError) {
-          console.error('Error al actualizar licencia:', updateError)
-          // No lanzamos error aquí porque el usuario ya está creado
-        }
-      }
+      
 
       // 5. Limpiar código pendiente
       localStorage.removeItem('pendingLicenseCode')
@@ -160,7 +164,13 @@ const Register = () => {
 
     } catch (error) {
       console.error('Error en registro:', error)
-      toast.error(error.message || 'Error al crear la cuenta. Inténtalo de nuevo.')
+      
+      // Manejo mejorado de errores
+      if (error.code === '23505') {
+        toast.error('Este email ya está registrado')
+      } else {
+        toast.error(error.message || 'Error al crear la cuenta. Inténtalo de nuevo.')
+      }
     } finally {
       setLoading(false)
     }

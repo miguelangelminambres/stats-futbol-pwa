@@ -17,7 +17,8 @@ import MatchesPage from '@/pages/MatchesPage'
 import MatchDetailPage from '@/pages/MatchDetailPage'
 import StatsPage from '@/pages/StatsPage'
 import SettingsPage from '@/pages/SettingsPage'
-
+import SubscriptionPage from '@/pages/SubscriptionPage'
+import SubscriptionSuccess from '@/pages/SubscriptionSuccess'
 function App() {
   return (
     <Router>
@@ -88,7 +89,22 @@ function App() {
                 </MainLayout>
               </ProtectedRoute>
             } />
+{/* 💳 SUSCRIPCIÓN */}
+<Route path="/subscription" element={
+  <ProtectedRoute>
+    <MainLayout>
+      <SubscriptionPage />
+    </MainLayout>
+  </ProtectedRoute>
+} />
 
+<Route path="/subscription/success" element={
+  <ProtectedRoute>
+    <MainLayout>
+      <SubscriptionSuccess />
+    </MainLayout>
+  </ProtectedRoute>
+} />
           </Routes>
           
           {/* Componentes globales */}

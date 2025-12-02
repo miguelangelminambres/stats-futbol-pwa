@@ -31,7 +31,8 @@ export const LicenseProvider = ({ children }) => {
   const loadUserLicenses = async () => {
     try {
       setLoading(true)
-
+ console.log('📌 Usuario actual:', user)
+    console.log('📌 User ID:', user?.id)
       const { data, error } = await supabase
         .from('user_licenses')
         .select(`
