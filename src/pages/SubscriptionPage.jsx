@@ -52,57 +52,50 @@ const SubscriptionPage = () => {
   ]
 
   const handleSubscribe = async (priceId, planId) => {
-    try {
-      setLoading(true)
-      setSelectedPlan(planId)
+  try {
+    setLoading(true)
+    setSelectedPlan(planId)
 
-      // Obtener el user_id actual
-      const { data: { user } } = await supabase.auth.getUser()
-      
-      if (!user) {
-        toast.error('Debes iniciar sesión')
-        return
-      }
-
-      // Crear sesión de Checkout en Stripe
-      const response = await fetch('/api/create-checkout-session', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          priceId,
-          userId: user.id,
-          licenseId: currentLicense.id,
-          successUrl: `${window.location.origin}/subscription/success`,
-          cancelUrl: `${window.location.origin}/subscription`
-        })
-      })
-
-      const session = await response.json()
-
-      if (session.error) {
-        throw new Error(session.error)
-      }
-
-      // Redirigir a Stripe Checkout
-      const stripe = await stripePromise
-      const { error } = await stripe.redirectToCheckout({
-        sessionId: session.id
-      })
-
-      if (error) {
-        throw error
-      }
-
-    } catch (error) {
-      console.error('Error al crear suscripción:', error)
-      toast.error('Error al procesar el pago')
-    } finally {
-      setLoading(false)
-      setSelectedPlan(null)
+    // Obtener el user_id actual
+    const { data: { user } } = await supabase.auth.getUser()
+    
+    if (!user) {
+      toast.error('Debes iniciar sesión')
+      return
     }
+
+    // Crear sesión de Checkout en Stripe
+    const response = await fetch('/api/create-checkout-session', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        priceId,
+        userId: user.id,
+        licenseId: currentLicense.id,
+        successUrl: `${window.location.origin}/subscription/success`,
+        cancelUrl: `${window.location.origin}/subscription`
+      })
+    })
+
+    const session = await response.json()
+
+    if (session.error) {
+      throw new Error(session.error)
+    }
+
+    // Redirigir directamente a la URL de checkout
+    window.location.href = session.url
+
+  } catch (error) {
+    console.error('Error al crear suscripción:', error)
+    toast.error('Error al procesar el pago')
+  } finally {
+    setLoading(false)
+    setSelectedPlan(null)
   }
+}
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 py-12 px-4 sm:px-6 lg:px-8">
