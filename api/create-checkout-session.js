@@ -8,11 +8,10 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { priceId, userId, licenseId, successUrl, cancelUrl } = req.body
+    const { priceId, userId, licenseId, successUrl, cancelUrl, isLifetime } = req.body
 
-    // Crear sesión de Checkout
-    const session = await stripe.checkout.sessions.create({
-      mode: 'subscription',
+    // Configuración base
+    const sessionConfig = {
       payment_method_types: ['card'],
       line_items: [
         {
@@ -26,13 +25,22 @@ export default async function handler(req, res) {
         userId,
         licenseId,
       },
-      subscription_data: {
+    }
+
+    // Lifetime = pago único, otros = suscripción
+    if (isLifetime) {
+      sessionConfig.mode = 'payment'
+    } else {
+      sessionConfig.mode = 'subscription'
+      sessionConfig.subscription_data = {
         metadata: {
           userId,
           licenseId,
         },
-      },
-    })
+      }
+    }
+
+    const session = await stripe.checkout.sessions.create(sessionConfig)
 
     res.status(200).json({ id: session.id, url: session.url })
   } catch (error) {

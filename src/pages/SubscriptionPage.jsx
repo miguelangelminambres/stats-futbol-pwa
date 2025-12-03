@@ -90,13 +90,14 @@ const SubscriptionPage = () => {
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        priceId,
-        userId: user.id,
-        licenseId: currentLicense.id,
-        successUrl: `${window.location.origin}/subscription/success`,
-        cancelUrl: `${window.location.origin}/subscription`
-      })
+     body: JSON.stringify({
+  priceId,
+  userId: user.id,
+  licenseId: currentLicense.id,
+  successUrl: `${window.location.origin}/subscription/success`,
+  cancelUrl: `${window.location.origin}/subscription`,
+  isLifetime: planId === 'lifetime'
+})
     })
 
     const session = await response.json()
