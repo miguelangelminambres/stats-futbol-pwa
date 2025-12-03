@@ -206,7 +206,37 @@ const SettingsPage = () => {
       console.error('Error logging out:', error);
     }
   };
+const handleManageSubscription = async () => {
+    try {
+      setLoading(true);
+      
+      const response = await fetch('/api/create-portal-session', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          customerId: currentLicense.stripe_customer_id,
+          returnUrl: window.location.href,
+        }),
+      });
 
+      const { url, error } = await response.json();
+      
+      if (error) {
+        throw new Error(error);
+      }
+
+      window.location.href = url;
+    } catch (error) {
+      console.error('Error opening portal:', error);
+      alert(language === 'es' 
+        ? 'Error al abrir el portal de gestión' 
+        : 'Error opening management portal');
+    } finally {
+      setLoading(false);
+    }
+  };
   const handleExportData = () => {
     // Funcionalidad futura
     alert(language === 'es' 
@@ -296,17 +326,33 @@ const SettingsPage = () => {
                 </div>
               </div>
               
-              <div>
-                <label className="block text-sm font-medium text-gray-500 mb-1">
-                  {t.season}
-                </label>
-                <div className="flex items-center gap-2">
-                  <Calendar className="h-5 w-5 text-gray-400" />
-                  <p className="text-lg font-semibold text-gray-900">2025/26</p>
+           <div>
+                  <label className="block text-sm font-medium text-gray-500 mb-1">
+                    {t.expiresAt}
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <Calendar className="h-5 w-5 text-gray-400" />
+                    <p className="text-gray-900">
+                      {currentLicense.expires_at 
+                        ? formatDate(currentLicense.expires_at) 
+                        : t.unlimited}
+                    </p>
+                  </div>
                 </div>
               </div>
-            </div>
-            
+              
+              {/* Botón Gestionar Suscripción */}
+              {currentLicense.stripe_customer_id && currentLicense.stripe_subscription_id && (
+                <div className="mt-6 pt-6 border-t border-gray-200">
+                  <button
+                    onClick={handleManageSubscription}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-lg transition-colors"
+                  >
+                    <CreditCard className="h-5 w-5" />
+                    {language === 'es' ? 'Gestionar suscripción' : 'Manage subscription'}
+                  </button>
+                </div>
+              )}
             {/* Stats del equipo */}
             <div className="mt-6 pt-6 border-t border-gray-200">
               <div className="grid grid-cols-2 gap-4">
