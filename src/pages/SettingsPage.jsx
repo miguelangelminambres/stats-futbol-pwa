@@ -151,7 +151,7 @@ const SettingsPage = () => {
     }
     if (currentLicense) {
       setTeamData({
-        name: currentLicense.name || '',
+        name: currentLicense?.name || '',
         season: '2025/26',
       });
       fetchStats();
@@ -164,14 +164,14 @@ const SettingsPage = () => {
       const { count: playersCount } = await supabase
         .from('players')
         .select('*', { count: 'exact', head: true })
-        .eq('license_id', currentLicense.id)
+        .eq('license_id', currentLicense?.id)
         .eq('status', 'active');
 
       // Contar partidos
       const { count: matchesCount } = await supabase
         .from('matches')
         .select('*', { count: 'exact', head: true })
-        .eq('license_id', currentLicense.id);
+        .eq('license_id', currentLicense?.id);
 
       setStats({
         players: playersCount || 0,
@@ -216,7 +216,7 @@ const handleManageSubscription = async () => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          customerId: currentLicense.stripe_customer_id,
+          customerId: currentLicense?.stripe_customer_id,
           returnUrl: window.location.href,
         }),
       });
@@ -333,8 +333,8 @@ const handleManageSubscription = async () => {
                   <div className="flex items-center gap-2">
                     <Calendar className="h-5 w-5 text-gray-400" />
                     <p className="text-gray-900">
-                      {currentLicense.expires_at 
-                        ? formatDate(currentLicense.expires_at) 
+                      {currentLicense?.expires_at 
+                        ? formatDate(currentLicense?.expires_at) 
                         : t.unlimited}
                     </p>
                   </div>
@@ -431,7 +431,7 @@ const handleManageSubscription = async () => {
                   <label className="block text-sm font-medium text-gray-500 mb-1">
                     {t.licenseStatus}
                   </label>
-                  {getLicenseStatusBadge(currentLicense.status)}
+                  {getLicenseStatusBadge(currentLicense?.status)}
                 </div>
                 
                 <div>
@@ -439,7 +439,7 @@ const handleManageSubscription = async () => {
                     {t.licenseType}
                   </label>
                   <p className="text-lg font-semibold text-gray-900">
-                    {currentLicense.license_type?.name || 'Standard'}
+                    {currentLicense?.license_type?.name || 'Standard'}
                   </p>
                 </div>
                 
@@ -449,7 +449,7 @@ const handleManageSubscription = async () => {
                   </label>
                   <div className="flex items-center gap-2">
                     <Clock className="h-5 w-5 text-gray-400" />
-                    <p className="text-gray-900">{formatDate(currentLicense.activated_at)}</p>
+                    <p className="text-gray-900">{formatDate(currentLicense?.activated_at)}</p>
                   </div>
                 </div>
                 
@@ -460,8 +460,8 @@ const handleManageSubscription = async () => {
                   <div className="flex items-center gap-2">
                     <Calendar className="h-5 w-5 text-gray-400" />
                     <p className="text-gray-900">
-                      {currentLicense.expires_at 
-                        ? formatDate(currentLicense.expires_at) 
+                      {currentLicense?.expires_at 
+                        ? formatDate(currentLicense?.expires_at) 
                         : t.unlimited}
                     </p>
                   </div>
