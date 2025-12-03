@@ -342,7 +342,7 @@ const handleManageSubscription = async () => {
               </div>
               
               {/* Botón Gestionar Suscripción */}
-              {currentLicense?.stripe_customer_id && currentLicense?.stripe_subscription_id && (
+              {currentLicense && (
                 <div className="mt-6 pt-6 border-t border-gray-200">
                   <button
                     onClick={handleManageSubscription}
