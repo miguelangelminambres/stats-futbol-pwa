@@ -35,19 +35,23 @@ export const LicenseProvider = ({ children }) => {
     console.log('📌 User ID:', user?.id)
       const { data, error } = await supabase
         .from('user_licenses')
-        .select(`
-          *,
-          license:licenses (
-            id,
-            code,
-            name,
-            status,
-            license_type:license_types (
-              name,
-              max_users
-            )
-          )
-        `)
+       .select(`
+  *,
+  license:licenses (
+    id,
+    code,
+    name,
+    status,
+    stripe_customer_id,
+    stripe_subscription_id,
+    expires_at,
+    activated_at,
+    license_type:license_types (
+      name,
+      max_users
+    )
+  )
+`)
         .eq('user_id', user.id)
         .eq('status', 'active')
 
