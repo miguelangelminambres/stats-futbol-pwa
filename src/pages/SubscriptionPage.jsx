@@ -19,7 +19,7 @@ const SubscriptionPage = () => {
       name: 'Mensual',
       price: '€3.99',
       period: 'mes',
-      priceId: 'price_1SZxjR3punCDPGmCrcuzcIRM',
+      priceId: 'price_1SZxix3punCDPGmCZsRdhpiz',
       features: [
         'Gestión ilimitada de jugadores',
         'Registro de partidos y estadísticas',
@@ -35,7 +35,7 @@ const SubscriptionPage = () => {
       name: 'Anual',
       price: '€25',
       period: 'año',
-      priceId: 'price_1SZxix3punCDPGmCZsRdhpiz',
+      priceId: 'price_1SZxjR3punCDPGmCrcuzcIRM',
       savings: 'Ahorra 48%',
       originalPrice: '€47.88',
       features: [
@@ -48,6 +48,26 @@ const SubscriptionPage = () => {
         '2 meses gratis'
       ],
       popular: true
+
+    },
+    {
+      id: 'lifetime',
+      name: 'Lifetime',
+      price: '€49',
+      period: 'para siempre',
+      priceId: 'price_1Sa9Yr3punCDPGmCBBC35rwW',
+      savings: 'Pago único',
+      features: [
+        'Gestión ilimitada de jugadores',
+        'Registro de partidos y estadísticas',
+        'Gráficos avanzados',
+        'Exportación PDF',
+        'Fotos de jugadores',
+        'Soporte prioritario',
+        'Acceso de por vida',
+        'Sin pagos recurrentes'
+      ],
+      popular: false
     }
   ]
 
