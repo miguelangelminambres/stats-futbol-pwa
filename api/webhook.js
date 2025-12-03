@@ -4,7 +4,7 @@ import { createClient } from '@supabase/supabase-js'
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY)
 const supabase = createClient(
   process.env.VITE_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY // Necesitarás añadir esta variable
+  process.env.SUPABASE_SERVICE_ROLE_KEY
 )
 
 export const config = {
@@ -45,17 +45,32 @@ export default async function handler(req, res) {
         const session = event.data.object
         const { userId, licenseId } = session.metadata
 
-        // Activar licencia
-        await supabase
-          .from('licenses')
-          .update({
-            status: 'active',
-            activated_at: new Date().toISOString(),
-            expires_at: null, // Se actualiza con el webhook de subscription
-          })
-          .eq('id', licenseId)
+        // Si es pago único (Lifetime), activar sin expiración
+        if (session.mode === 'payment') {
+          await supabase
+            .from('licenses')
+            .update({
+              status: 'active',
+              activated_at: new Date().toISOString(),
+              expires_at: null,
+              stripe_customer_id: session.customer,
+            })
+            .eq('id', licenseId)
 
-        console.log(`Licencia ${licenseId} activada para usuario ${userId}`)
+          console.log(`Licencia Lifetime ${licenseId} activada`)
+        }
+        // Si es suscripción, solo marcar activated_at (expires_at lo pone subscription.created)
+        else {
+          await supabase
+            .from('licenses')
+            .update({
+              status: 'active',
+              activated_at: new Date().toISOString(),
+            })
+            .eq('id', licenseId)
+
+          console.log(`Licencia ${licenseId} activada (suscripción)`)
+        }
         break
       }
 
@@ -63,6 +78,11 @@ export default async function handler(req, res) {
       case 'customer.subscription.updated': {
         const subscription = event.data.object
         const { licenseId } = subscription.metadata
+
+        if (!licenseId) {
+          console.log('No licenseId in subscription metadata')
+          break
+        }
 
         // Calcular fecha de expiración
         const expiresAt = new Date(subscription.current_period_end * 1000).toISOString()
@@ -78,7 +98,7 @@ export default async function handler(req, res) {
           })
           .eq('id', licenseId)
 
-        console.log(`Suscripción actualizada para licencia ${licenseId}`)
+        console.log(`Suscripción actualizada para licencia ${licenseId}, expira: ${expiresAt}`)
         break
       }
 
@@ -86,7 +106,8 @@ export default async function handler(req, res) {
         const subscription = event.data.object
         const { licenseId } = subscription.metadata
 
-        // Desactivar licencia
+        if (!licenseId) break
+
         await supabase
           .from('licenses')
           .update({
@@ -100,10 +121,14 @@ export default async function handler(req, res) {
 
       case 'invoice.payment_failed': {
         const invoice = event.data.object
+        
+        if (!invoice.subscription) break
+        
         const subscription = await stripe.subscriptions.retrieve(invoice.subscription)
         const { licenseId } = subscription.metadata
 
-        // Marcar como pendiente de pago
+        if (!licenseId) break
+
         await supabase
           .from('licenses')
           .update({
