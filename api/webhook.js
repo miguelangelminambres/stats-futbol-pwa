@@ -75,7 +75,7 @@ export default async function handler(req, res) {
               code: licenseCode,
               name: `Equipo de ${userEmail}`,
               status: 'active',
-              license_type_id: '0f86846e-5586-417d-a06c-40c405d46ed',
+              license_type_id: '0f86846e-5586-417d-a06c-40c405d46edf',
               activated_at: new Date().toISOString(),
               expires_at: isLifetime ? null : new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
               stripe_customer_id: session.customer,
