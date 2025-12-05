@@ -7,7 +7,6 @@ import ProtectedRoute from '@/components/common/ProtectedRoute'
 import MainLayout from '@/components/layout/MainLayout'
 import InstallPWA from '@/components/common/InstallPWA'
 
-import LicenseValidation from '@/pages/auth/LicenseValidation'
 import Register from '@/pages/auth/Register'
 import Login from '@/pages/auth/Login'
 import Dashboard from '@/pages/Dashboard'
@@ -19,6 +18,7 @@ import StatsPage from '@/pages/StatsPage'
 import SettingsPage from '@/pages/SettingsPage'
 import SubscriptionPage from '@/pages/SubscriptionPage'
 import SubscriptionSuccess from '@/pages/SubscriptionSuccess'
+
 function App() {
   return (
     <Router>
@@ -26,12 +26,24 @@ function App() {
         <LicenseProvider>
           <Routes>
             {/* Rutas públicas */}
-            <Route path="/license" element={<LicenseValidation />} />
             <Route path="/register" element={<Register />} />
             <Route path="/login" element={<Login />} />
-            <Route path="/" element={<Navigate to="/license" replace />} />
+            <Route path="/" element={<Navigate to="/login" replace />} />
 
-            {/* Rutas protegidas */}
+            {/* Suscripción - requiere login pero no licencia */}
+            <Route path="/subscription" element={
+              <ProtectedRoute requireLicense={false}>
+                <SubscriptionPage />
+              </ProtectedRoute>
+            } />
+
+            <Route path="/subscription/success" element={
+              <ProtectedRoute requireLicense={false}>
+                <SubscriptionSuccess />
+              </ProtectedRoute>
+            } />
+
+            {/* Rutas protegidas - requieren login Y licencia */}
             <Route path="/dashboard" element={
               <ProtectedRoute>
                 <MainLayout>
@@ -72,7 +84,6 @@ function App() {
               </ProtectedRoute>
             } />
 
-            {/* ✅ STATS - Ahora protegida y con layout */}
             <Route path="/stats" element={
               <ProtectedRoute>
                 <MainLayout>
@@ -81,7 +92,6 @@ function App() {
               </ProtectedRoute>
             } />
 
-            {/* ✅ SETTINGS - Ahora protegida y con layout */}
             <Route path="/settings" element={
               <ProtectedRoute>
                 <MainLayout>
@@ -89,25 +99,8 @@ function App() {
                 </MainLayout>
               </ProtectedRoute>
             } />
-{/* 💳 SUSCRIPCIÓN */}
-<Route path="/subscription" element={
-  <ProtectedRoute>
-    <MainLayout>
-      <SubscriptionPage />
-    </MainLayout>
-  </ProtectedRoute>
-} />
-
-<Route path="/subscription/success" element={
-  <ProtectedRoute>
-    <MainLayout>
-      <SubscriptionSuccess />
-    </MainLayout>
-  </ProtectedRoute>
-} />
           </Routes>
           
-          {/* Componentes globales */}
           <Toaster position="top-right" />
           <InstallPWA />
         </LicenseProvider>

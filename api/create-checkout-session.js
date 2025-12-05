@@ -8,9 +8,12 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { priceId, userId, licenseId, successUrl, cancelUrl, isLifetime } = req.body
+    const { priceId, userId, userEmail, successUrl, cancelUrl, isLifetime } = req.body
 
-    // Configuración base
+    if (!priceId || !userId || !userEmail) {
+      return res.status(400).json({ error: 'Faltan datos requeridos' })
+    }
+
     const sessionConfig = {
       payment_method_types: ['card'],
       line_items: [
@@ -19,30 +22,30 @@ export default async function handler(req, res) {
           quantity: 1,
         },
       ],
+      mode: isLifetime ? 'payment' : 'subscription',
       success_url: successUrl,
       cancel_url: cancelUrl,
+      customer_email: userEmail,
       metadata: {
         userId,
-        licenseId,
+        userEmail
       },
+      allow_promotion_codes: true,
     }
 
-    // Lifetime = pago único, otros = suscripción
-    if (isLifetime) {
-      sessionConfig.mode = 'payment'
-    } else {
-      sessionConfig.mode = 'subscription'
+    // Para suscripciones, añadir metadata a la suscripción también
+    if (!isLifetime) {
       sessionConfig.subscription_data = {
         metadata: {
           userId,
-          licenseId,
-        },
+          userEmail
+        }
       }
     }
 
     const session = await stripe.checkout.sessions.create(sessionConfig)
 
-    res.status(200).json({ id: session.id, url: session.url })
+    res.status(200).json({ url: session.url })
   } catch (error) {
     console.error('Error creating checkout session:', error)
     res.status(500).json({ error: error.message })
