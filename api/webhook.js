@@ -8,9 +8,7 @@ const supabase = createClient(
 )
 
 export const config = {
-  api: {
-    bodyParser: false,
-  },
+  api: { bodyParser: false }
 }
 
 async function buffer(readable) {
@@ -19,6 +17,15 @@ async function buffer(readable) {
     chunks.push(typeof chunk === 'string' ? Buffer.from(chunk) : chunk)
   }
   return Buffer.concat(chunks)
+}
+
+function generateLicenseCode() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+  let code = 'SF-'
+  for (let i = 0; i < 8; i++) {
+    code += chars.charAt(Math.floor(Math.random() * chars.length))
+  }
+  return code
 }
 
 export default async function handler(req, res) {
@@ -35,7 +42,7 @@ export default async function handler(req, res) {
   try {
     event = stripe.webhooks.constructEvent(buf, sig, webhookSecret)
   } catch (err) {
-    console.error(`Webhook signature verification failed: ${err.message}`)
+    console.error(`Webhook signature failed: ${err.message}`)
     return res.status(400).send(`Webhook Error: ${err.message}`)
   }
 
@@ -43,100 +50,153 @@ export default async function handler(req, res) {
     switch (event.type) {
       case 'checkout.session.completed': {
         const session = event.data.object
-        const { userId, licenseId } = session.metadata
+        const { userId, userEmail } = session.metadata
+        const isLifetime = session.mode === 'payment'
 
-        // Si es pago único (Lifetime), activar sin expiración
-        if (session.mode === 'payment') {
-          await supabase
+        console.log(`Checkout completado - User: ${userId}, Email: ${userEmail}, Lifetime: ${isLifetime}`)
+
+        const { data: existingUserLicense } = await supabase
+          .from('user_licenses')
+          .select('license_id')
+          .eq('user_id', userId)
+          .single()
+
+        let licenseId
+
+        if (existingUserLicense) {
+          licenseId = existingUserLicense.license_id
+          console.log(`Usuario ya tiene licencia: ${licenseId}`)
+        } else {
+          const licenseCode = generateLicenseCode()
+          
+          const { data: newLicense, error: licenseError } = await supabase
             .from('licenses')
-            .update({
+            .insert([{
+              code: licenseCode,
+              name: `Equipo de ${userEmail}`,
               status: 'active',
+              license_type_id: '0f86846e-5586-417d-a06c-40c405d46edf',
               activated_at: new Date().toISOString(),
-              expires_at: null,
+              expires_at: isLifetime ? null : new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
               stripe_customer_id: session.customer,
-            })
-            .eq('id', licenseId)
+              created_at: new Date().toISOString()
+            }])
+            .select()
+            .single()
 
-          console.log(`Licencia Lifetime ${licenseId} activada`)
-        }
-        // Si es suscripción, solo marcar activated_at (expires_at lo pone subscription.created)
-        else {
-          await supabase
-            .from('licenses')
-            .update({
+          if (licenseError) {
+            console.error('Error creando licencia:', licenseError)
+            throw licenseError
+          }
+
+          licenseId = newLicense.id
+          console.log(`Nueva licencia creada: ${licenseId} (${licenseCode})`)
+
+          const { error: linkError } = await supabase
+            .from('user_licenses')
+            .insert([{
+              user_id: userId,
+              license_id: licenseId,
               status: 'active',
               activated_at: new Date().toISOString(),
-            })
-            .eq('id', licenseId)
+              created_at: new Date().toISOString()
+            }])
 
-          console.log(`Licencia ${licenseId} activada (suscripción)`)
+          if (linkError) {
+            console.error('Error vinculando usuario:', linkError)
+            throw linkError
+          }
         }
+
+        const updateData = {
+          status: 'active',
+          activated_at: new Date().toISOString(),
+          stripe_customer_id: session.customer
+        }
+
+        if (isLifetime) {
+          updateData.expires_at = null
+        }
+
+        await supabase
+          .from('licenses')
+          .update(updateData)
+          .eq('id', licenseId)
+
+        console.log(`Licencia ${licenseId} activada`)
         break
       }
 
       case 'customer.subscription.created':
       case 'customer.subscription.updated': {
         const subscription = event.data.object
-        const { licenseId } = subscription.metadata
+        const customerId = subscription.customer
 
-        if (!licenseId) {
-          console.log('No licenseId in subscription metadata')
+        const { data: license } = await supabase
+          .from('licenses')
+          .select('id')
+          .eq('stripe_customer_id', customerId)
+          .single()
+
+        if (!license) {
+          console.log('No se encontró licencia para customer:', customerId)
           break
         }
 
-        // Calcular fecha de expiración
         const expiresAt = new Date(subscription.current_period_end * 1000).toISOString()
 
-        // Actualizar licencia
         await supabase
           .from('licenses')
           .update({
             status: 'active',
             expires_at: expiresAt,
-            stripe_subscription_id: subscription.id,
-            stripe_customer_id: subscription.customer,
+            stripe_subscription_id: subscription.id
           })
-          .eq('id', licenseId)
+          .eq('id', license.id)
 
-        console.log(`Suscripción actualizada para licencia ${licenseId}, expira: ${expiresAt}`)
+        console.log(`Suscripción actualizada - Licencia: ${license.id}, Expira: ${expiresAt}`)
         break
       }
 
       case 'customer.subscription.deleted': {
         const subscription = event.data.object
-        const { licenseId } = subscription.metadata
+        const customerId = subscription.customer
 
-        if (!licenseId) break
-
-        await supabase
+        const { data: license } = await supabase
           .from('licenses')
-          .update({
-            status: 'expired',
-          })
-          .eq('id', licenseId)
+          .select('id')
+          .eq('stripe_customer_id', customerId)
+          .single()
 
-        console.log(`Suscripción cancelada para licencia ${licenseId}`)
+        if (license) {
+          await supabase
+            .from('licenses')
+            .update({ status: 'expired' })
+            .eq('id', license.id)
+
+          console.log(`Suscripción cancelada - Licencia: ${license.id}`)
+        }
         break
       }
 
       case 'invoice.payment_failed': {
         const invoice = event.data.object
-        
-        if (!invoice.subscription) break
-        
-        const subscription = await stripe.subscriptions.retrieve(invoice.subscription)
-        const { licenseId } = subscription.metadata
+        const customerId = invoice.customer
 
-        if (!licenseId) break
-
-        await supabase
+        const { data: license } = await supabase
           .from('licenses')
-          .update({
-            status: 'payment_failed',
-          })
-          .eq('id', licenseId)
+          .select('id')
+          .eq('stripe_customer_id', customerId)
+          .single()
 
-        console.log(`Pago fallido para licencia ${licenseId}`)
+        if (license) {
+          await supabase
+            .from('licenses')
+            .update({ status: 'payment_failed' })
+            .eq('id', license.id)
+
+          console.log(`Pago fallido - Licencia: ${license.id}`)
+        }
         break
       }
 
@@ -146,7 +206,7 @@ export default async function handler(req, res) {
 
     res.status(200).json({ received: true })
   } catch (error) {
-    console.error('Error processing webhook:', error)
-    res.status(500).json({ error: 'Webhook processing failed' })
+    console.error('Error en webhook:', error)
+    res.status(500).json({ error: 'Webhook failed' })
   }
 }

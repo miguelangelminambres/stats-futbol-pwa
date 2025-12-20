@@ -1,17 +1,14 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
-import { useLicense } from '@/contexts/LicenseContext'
 import { supabase } from '@/lib/supabaseClient'
-import { Trophy, Mail, Lock, User, Eye, EyeOff, Key } from 'lucide-react'
+import { Trophy, Mail, Lock, User, Eye, EyeOff } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 const Register = () => {
   const navigate = useNavigate()
   const { signUp } = useAuth()
-  const { validateLicenseCode } = useLicense()
   
-  const [licenseInfo, setLicenseInfo] = useState(null)
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -22,33 +19,6 @@ const Register = () => {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [loading, setLoading] = useState(false)
 
-  useEffect(() => {
-    // Verificar que haya un código de licencia validado
-    const pendingCode = localStorage.getItem('pendingLicenseCode')
-    
-    if (!pendingCode) {
-      toast.error('Primero debes validar un código de licencia')
-      navigate('/license')
-      return
-    }
-
-    // Validar el código de nuevo por seguridad
-    const revalidateLicense = async () => {
-      const result = await validateLicenseCode(pendingCode)
-      
-      if (!result.valid) {
-        toast.error(result.error)
-        localStorage.removeItem('pendingLicenseCode')
-        navigate('/license')
-        return
-      }
-      
-      setLicenseInfo(result.license)
-    }
-
-    revalidateLicense()
-  }, [])
-
   const handleChange = (e) => {
     setFormData({
       ...formData,
@@ -58,8 +28,7 @@ const Register = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    
-    // Validaciones
+
     if (!formData.name || !formData.email || !formData.password || !formData.confirmPassword) {
       toast.error('Por favor, completa todos los campos')
       return
@@ -78,7 +47,7 @@ const Register = () => {
     setLoading(true)
 
     try {
-      // 0. NUEVO: Verificar si el email ya existe en la tabla users
+      // Verificar si el email ya existe
       const { data: existingUser } = await supabase
         .from('users')
         .select('id')
@@ -95,9 +64,7 @@ const Register = () => {
       const { data: authData, error: authError } = await signUp(
         formData.email,
         formData.password,
-        {
-          name: formData.name
-        }
+        { name: formData.name }
       )
 
       if (authError) {
@@ -111,7 +78,7 @@ const Register = () => {
 
       const userId = authData.user.id
 
-      // 2. Crear usuario en la tabla users
+      // 2. Crear usuario en la tabla users (SIN licencia por ahora)
       const { error: userError } = await supabase
         .from('users')
         .insert([{
@@ -126,62 +93,23 @@ const Register = () => {
         }])
 
       if (userError) {
-        console.error('Error al crear usuario en tabla users:', userError)
-        // Manejar error de duplicado específicamente
+        console.error('Error al crear usuario:', userError)
         if (userError.code === '23505') {
-          toast.error('Este email ya está registrado. Por favor, inicia sesión.')
+          toast.error('Este email ya está registrado.')
           return
         }
         throw userError
       }
 
-      // 3. Vincular usuario a la licencia en user_licenses
-      const { error: linkError } = await supabase
-        .from('user_licenses')
-        .insert([
-          {
-            user_id: userId,
-            license_id: licenseInfo.id,
-            status: 'active',
-            activated_at: new Date().toISOString(),
-            created_at: new Date().toISOString()
-          }
-        ])
-
-      if (linkError) {
-        console.error('Error al vincular licencia:', linkError)
-        throw linkError
-      }
-
-      // 4. Si es el primer usuario, actualizar el estado de la licencia a 'active'
-      
-
-      // 5. Limpiar código pendiente
-      localStorage.removeItem('pendingLicenseCode')
-
-      toast.success('¡Registro exitoso! Por favor, inicia sesión')
+      toast.success('¡Registro exitoso! Ahora elige tu plan.')
       navigate('/login')
 
     } catch (error) {
       console.error('Error en registro:', error)
-      
-      // Manejo mejorado de errores
-      if (error.code === '23505') {
-        toast.error('Este email ya está registrado')
-      } else {
-        toast.error(error.message || 'Error al crear la cuenta. Inténtalo de nuevo.')
-      }
+      toast.error(error.message || 'Error al crear la cuenta.')
     } finally {
       setLoading(false)
     }
-  }
-
-  if (!licenseInfo) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-primary-50 to-primary-100 flex items-center justify-center">
-        <div className="spinner"></div>
-      </div>
-    )
   }
 
   return (
@@ -196,18 +124,7 @@ const Register = () => {
               Crear Cuenta
             </h2>
             <p className="text-gray-600">
-              Completa tus datos para registrarte
-            </p>
-          </div>
-
-          {/* Info de licencia */}
-          <div className="bg-primary-50 border border-primary-200 rounded-lg p-4 mb-6">
-            <div className="flex items-center gap-2 mb-2">
-              <Key className="h-4 w-4 text-primary-600" />
-              <span className="text-sm font-medium text-gray-700">Licencia: {licenseInfo.code}</span>
-            </div>
-            <p className="text-xs text-gray-600">
-              Plan {licenseInfo.type} • {licenseInfo.availableSlots} plazas disponibles
+              Regístrate gratis y elige tu plan después
             </p>
           </div>
 
@@ -329,7 +246,7 @@ const Register = () => {
                   Creando cuenta...
                 </span>
               ) : (
-                'Crear Cuenta'
+                'Crear Cuenta Gratis'
               )}
             </button>
           </form>
